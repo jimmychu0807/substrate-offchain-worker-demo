@@ -28,4 +28,4 @@ applies to this repository as well.
 ### About Off-chain Worker
 
 Goto [here](docs/ocw-index.md) to learn more about off-chain worker (extracted from Substrate
-Recipes).
+Recipes, based on Substrate v3).

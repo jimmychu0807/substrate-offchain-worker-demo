@@ -386,7 +386,7 @@ pub mod pallet {
 				.deadline(timeout) // Setting the timeout time
 				.send() // Sending the request out by the host
 				.map_err(|e| {
-					log::warn!("{:?}", e);
+					log::error!("{:?}", e);
 					<Error<T>>::HttpFetchingError
 				})?;
 
@@ -397,11 +397,11 @@ pub mod pallet {
 			let response = pending
 				.try_wait(timeout)
 				.map_err(|e| {
-					log::warn!("{:?}", e);
+					log::error!("{:?}", e);
 					<Error<T>>::HttpFetchingError
 				})?
 				.map_err(|e| {
-					log::warn!("{:?}", e);
+					log::error!("{:?}", e);
 					<Error<T>>::HttpFetchingError
 				})?;
 

@@ -3531,6 +3531,7 @@ dependencies = [
  "sp-consensus-aura",
  "sp-core",
  "sp-finality-grandpa",
+ "sp-keystore",
  "sp-runtime",
  "sp-timestamp",
  "structopt",
@@ -3552,6 +3553,7 @@ dependencies = [
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
+ "pallet-ocw",
  "pallet-randomness-collective-flip",
  "pallet-sudo",
  "pallet-template",
@@ -3790,6 +3792,25 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-staking",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-ocw"
+version = "3.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "parking_lot 0.11.2",
+ "scale-info",
+ "serde",
+ "serde_json",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-std",
 ]
 

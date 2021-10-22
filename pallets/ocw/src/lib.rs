@@ -60,7 +60,6 @@ pub mod pallet {
 	pub mod crypto {
 		use crate::KEY_TYPE;
 		use sp_core::sr25519::Signature as Sr25519Signature;
-		use scale_info::prelude::{*, string::String};
 		use sp_std::prelude::*;
 		use sp_runtime::{
 			app_crypto::{app_crypto, sr25519},

@@ -194,8 +194,6 @@ pub mod pallet {
 		/// so the code should be able to handle that.
 		/// You can use `Local Storage` API to coordinate runs of the worker.
 		fn offchain_worker(block_number: T::BlockNumber) {
-			log::info!("Hello World from offchain workers!");
-
 			// Here we are showcasing various techniques used when running off-chain workers (ocw)
 			// 1. Sending signed transaction from ocw
 			// 2. Sending unsigned transaction from ocw
@@ -372,31 +370,40 @@ pub mod pallet {
 		/// This function uses the `offchain::http` API to query the remote github information,
 		///   and returns the JSON response as vector of bytes.
 		fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
-			log::info!("sending request to: {}", HTTP_REMOTE_REQUEST);
+			log::info!("Sending request to: {}", HTTP_REMOTE_REQUEST);
 
 			// Initiate an external HTTP GET request. This is using high-level wrappers from `sp_runtime`.
 			let request = rt_offchain::http::Request::get(HTTP_REMOTE_REQUEST);
 
 			// Keeping the offchain worker execution time reasonable, so limiting the call to be within 3s.
 			let timeout = sp_io::offchain::timestamp()
-			.add(rt_offchain::Duration::from_millis(FETCH_TIMEOUT_PERIOD));
+				.add(rt_offchain::Duration::from_millis(FETCH_TIMEOUT_PERIOD));
 
 			// For github API request, we also need to specify `user-agent` in http request header.
 			//   See: https://developer.github.com/v3/#user-agent-required
 			let pending = request
-			.add_header("User-Agent", HTTP_HEADER_USER_AGENT)
+				.add_header("User-Agent", HTTP_HEADER_USER_AGENT)
 				.deadline(timeout) // Setting the timeout time
 				.send() // Sending the request out by the host
-				.map_err(|_| <Error<T>>::HttpFetchingError)?;
+				.map_err(|e| {
+					log::warn!("{:?}", e);
+					<Error<T>>::HttpFetchingError
+				})?;
 
 			// By default, the http request is async from the runtime perspective. So we are asking the
 			//   runtime to wait here.
 			// The returning value here is a `Result` of `Result`, so we are unwrapping it twice by two `?`
 			//   ref: https://substrate.dev/rustdocs/v2.0.0/sp_runtime/offchain/http/struct.PendingRequest.html#method.try_wait
 			let response = pending
-			.try_wait(timeout)
-			.map_err(|_| <Error<T>>::HttpFetchingError)?
-			.map_err(|_| <Error<T>>::HttpFetchingError)?;
+				.try_wait(timeout)
+				.map_err(|e| {
+					log::warn!("{:?}", e);
+					<Error<T>>::HttpFetchingError
+				})?
+				.map_err(|e| {
+					log::warn!("{:?}", e);
+					<Error<T>>::HttpFetchingError
+				})?;
 
 			if response.code != 200 {
 				log::error!("Unexpected http request status code: {}", response.code);

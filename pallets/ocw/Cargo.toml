@@ -28,6 +28,7 @@ log = { version = "0.4.14", default-features = false }
 
 frame-support = { git = 'https://github.com/paritytech/substrate.git', tag = 'monthly-2021-10', version = '4.0.0-dev', default-features = false }
 frame-system = { git = 'https://github.com/paritytech/substrate.git', tag = 'monthly-2021-10', version = '4.0.0-dev', default-features = false }
+sp-application-crypto = { git = 'https://github.com/paritytech/substrate.git', tag = 'monthly-2021-10', version = "4.0.0-dev", default-features = false }
 sp-core = { git = 'https://github.com/paritytech/substrate.git', tag = 'monthly-2021-10', version = '4.0.0-dev', default-features = false }
 sp-io = { git = 'https://github.com/paritytech/substrate.git', tag = 'monthly-2021-10', version = '4.0.0-dev', default-features = false }
 sp-runtime = { git = 'https://github.com/paritytech/substrate.git', tag = 'monthly-2021-10', version = '4.0.0-dev', default-features = false }
@@ -40,6 +41,7 @@ std = [
 	'frame-support/std',
 	'frame-system/std',
 	'parity-scale-codec/std',
+	'sp-application-crypto/std',
 	'sp-io/std',
 	'sp-runtime/std',
 	'sp-std/std',

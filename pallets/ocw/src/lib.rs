@@ -16,7 +16,6 @@ pub mod pallet {
 		},
 	};
 	use sp_core::{crypto::KeyTypeId};
-	use sp_arithmetic::per_things::Permill;
 	use sp_runtime::{
 		offchain as rt_offchain,
 		traits::{
@@ -61,8 +60,12 @@ pub mod pallet {
 	pub mod crypto {
 		use crate::KEY_TYPE;
 		use sp_core::sr25519::Signature as Sr25519Signature;
-		use sp_runtime::app_crypto::{app_crypto, sr25519};
-		use sp_runtime::{traits::Verify, MultiSignature, MultiSigner};
+		use scale_info::prelude::{*, string::String};
+		use sp_std::prelude::*;
+		use sp_runtime::{
+			app_crypto::{app_crypto, sr25519},
+			traits::Verify, MultiSignature, MultiSigner
+		};
 
 		app_crypto!(sr25519, KEY_TYPE);
 
@@ -84,7 +87,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, scale_info::TypeInfo)]
 	pub struct Payload<Public> {
 		number: u64,
 		public: Public,
@@ -97,7 +100,7 @@ pub mod pallet {
 	}
 
 	// ref: https://serde.rs/container-attrs.html#crate
-	#[derive(Deserialize, Encode, Decode, Default)]
+	#[derive(Deserialize, Encode, Decode, Default, scale_info::TypeInfo)]
 	struct GithubInfo {
 		// Specify our own deserializing function to convert JSON string to vector of bytes
 		#[serde(deserialize_with = "de_string_to_bytes")]
@@ -154,10 +157,6 @@ pub mod pallet {
 	// https://substrate.dev/docs/en/knowledgebase/runtime/storage#declaring-storage-items
 	pub type Numbers<T> = StorageValue<_, VecDeque<u64>, ValueQuery>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn prices)]
-	pub type Prices<T> = StorageValue<_, VecDeque<(u64, Permill)>, ValueQuery>;
-
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -203,14 +202,13 @@ pub mod pallet {
 			// 2. Sending unsigned transaction from ocw
 			// 3. Sending unsigned transactions with signed payloads from ocw
 			// 4. Fetching JSON via http requests in ocw
-			const TX_TYPES: u32 = 5;
+			const TX_TYPES: u32 = 4;
 			let modu = block_number.try_into().map_or(TX_TYPES, |bn: usize| (bn as u32) % TX_TYPES);
 			let result = match modu {
 				0 => Self::offchain_signed_tx(block_number),
 				1 => Self::offchain_unsigned_tx(block_number),
 				2 => Self::offchain_unsigned_tx_signed_payload(block_number),
 				3 => Self::fetch_github_info(),
-				4 => Self::fetch_price_info(),
 				_ => Err(Error::<T>::UnknownOffchainMux),
 			};
 
@@ -229,19 +227,20 @@ pub mod pallet {
 		/// By default unsigned transactions are disallowed, but implementing the validator
 		/// here we make sure that some particular calls (the ones produced by offchain worker)
 		/// are being whitelisted and marked as valid.
-		fn validate_unsigned(_source: TransactionSource, call: &Self::Call)
-		-> TransactionValidity
-		{
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 			let valid_tx = |provide| ValidTransaction::with_tag_prefix("ocw-demo")
-			.priority(UNSIGNED_TXS_PRIORITY)
-			.and_provides([&provide])
-			.longevity(3)
-			.propagate(true)
-			.build();
+				.priority(UNSIGNED_TXS_PRIORITY)
+				.and_provides([&provide])
+				.longevity(3)
+				.propagate(true)
+				.build();
 
 			match call {
-				Call::submit_number_unsigned(_number) => valid_tx(b"submit_number_unsigned".to_vec()),
-				Call::submit_number_unsigned_with_signed_payload(ref payload, ref signature) => {
+				Call::submit_number_unsigned { number: _number } => valid_tx(b"submit_number_unsigned".to_vec()),
+				Call::submit_number_unsigned_with_signed_payload {
+					ref payload,
+					ref signature
+				} => {
 					if !SignedPayload::<T>::verify::<T::AuthorityId>(payload, signature.clone()) {
 						return InvalidTransaction::BadProof.into();
 					}
@@ -275,8 +274,11 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(10000)]
-		pub fn submit_number_unsigned_with_signed_payload(origin: OriginFor<T>, payload: Payload<T::Public>,
-			_signature: T::Signature) -> DispatchResult
+		#[allow(unused_variables)]
+		pub fn submit_number_unsigned_with_signed_payload(
+			origin: OriginFor<T>,
+			payload: Payload<T::Public>,
+			signature: T::Signature) -> DispatchResult
 		{
 			let _ = ensure_none(origin)?;
 			// we don't need to verify the signature here because it has been verified in
@@ -302,23 +304,6 @@ pub mod pallet {
 				log::info!("Number vector: {:?}", numbers);
 			});
 		}
-
-		fn fetch_price_info() -> Result<(), Error<T>> {
-			// TODO: 这是你们的功课
-
-			// 利用 offchain worker 取出 DOT 当前对 USD 的价格，并把写到一个 Vec 的存储里，
-			// 你们自己选一种方法提交回链上，并在代码注释为什么用这种方法提交回链上最好。只保留当前最近的 10 个价格，
-			// 其他价格可丢弃 （就是 Vec 的长度长到 10 后，这时再插入一个值时，要先丢弃最早的那个值）。
-
-			// 取得的价格 parse 完后，放在以下存儲：
-			// pub type Prices<T> = StorageValue<_, VecDeque<(u64, Permill)>, ValueQuery>
-
-			// 这个 http 请求可得到当前 DOT 价格：
-			// [https://api.coincap.io/v2/assets/polkadot](https://api.coincap.io/v2/assets/polkadot)。
-
-			Ok(())
-		}
-
 
 		/// Check if we have fetched github info before. If yes, we can use the cached version
 		///   stored in off-chain worker storage `storage`. If not, we fetch the remote info and
@@ -438,8 +423,8 @@ pub mod pallet {
 			//   - `Some((account, Err(())))`: error occured when sending the transaction
 			let result = signer.send_signed_transaction(|_acct|
 				// This is the on-chain function
-				Call::submit_number_signed(number)
-				);
+				Call::submit_number_signed { number }
+			);
 
 			// Display error if the signed tx fails.
 			if let Some((acc, res)) = result {
@@ -458,7 +443,7 @@ pub mod pallet {
 
 		fn offchain_unsigned_tx(block_number: T::BlockNumber) -> Result<(), Error<T>> {
 			let number: u64 = block_number.try_into().unwrap_or(0);
-			let call = Call::submit_number_unsigned(number);
+			let call = Call::submit_number_unsigned { number };
 
 			// `submit_unsigned_transaction` returns a type of `Result<(), ()>`
 			//   ref: https://substrate.dev/rustdocs/v2.0.0/frame_system/offchain/struct.SubmitTransaction.html#method.submit_unsigned_transaction
@@ -482,8 +467,10 @@ pub mod pallet {
 			//   - `Some((account, Err(())))`: error occured when sending the transaction
 			if let Some((_, res)) = signer.send_unsigned_transaction(
 				|acct| Payload { number, public: acct.public.clone() },
-				Call::submit_number_unsigned_with_signed_payload
-				) {
+				|payload, signature| Call::submit_number_unsigned_with_signed_payload {
+					payload, signature
+				},
+			) {
 				return res.map_err(|_| {
 					log::error!("Failed in offchain_unsigned_tx_signed_payload");
 					<Error<T>>::OffchainUnsignedTxSignedPayloadError

@@ -5,7 +5,7 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	//! A demonstration of an offchain worker that sends onchain callbacks
-	use core::{convert::TryInto, fmt};
+	use core::{convert::TryInto};
 	use parity_scale_codec::{Decode, Encode};
 	use frame_support::pallet_prelude::*;
 	use frame_system::{
@@ -17,14 +17,13 @@ pub mod pallet {
 	};
 	use sp_core::{crypto::KeyTypeId};
 	use sp_runtime::{
-		offchain as rt_offchain,
-		traits::{
-			BlockNumberProvider
-		},
 		offchain::{
+			http,
 			storage::StorageValueRef,
 			storage_lock::{BlockAndTime, StorageLock},
+			Duration,
 		},
+		traits::BlockNumberProvider,
 		transaction_validity::{
 			InvalidTransaction, TransactionSource, TransactionValidity, ValidTransaction,
 		},
@@ -47,8 +46,7 @@ pub mod pallet {
 	const UNSIGNED_TXS_PRIORITY: u64 = 100;
 
 	// We are fetching information from the github public API about organization`substrate-developer-hub`.
-	const HTTP_REMOTE_REQUEST: &str = "https://api.github.com/orgs/substrate-developer-hub";
-	const HTTP_HEADER_USER_AGENT: &str = "jimmychu0807";
+	const HTTP_REMOTE_REQUEST: &str = "https://hacker-news.firebaseio.com/v0/item/9129911.json";
 
 	const FETCH_TIMEOUT_PERIOD: u64 = 3000; // in milli-seconds
 	const LOCK_TIMEOUT_EXPIRATION: u64 = FETCH_TIMEOUT_PERIOD + 1000; // in milli-seconds
@@ -99,14 +97,16 @@ pub mod pallet {
 	}
 
 	// ref: https://serde.rs/container-attrs.html#crate
-	#[derive(Deserialize, Encode, Decode, Default, scale_info::TypeInfo)]
-	struct GithubInfo {
+	#[derive(Deserialize, Encode, Decode, Default, RuntimeDebug, scale_info::TypeInfo)]
+	struct HackerNewsInfo {
 		// Specify our own deserializing function to convert JSON string to vector of bytes
 		#[serde(deserialize_with = "de_string_to_bytes")]
-		login: Vec<u8>,
+		by: Vec<u8>,
 		#[serde(deserialize_with = "de_string_to_bytes")]
-		blog: Vec<u8>,
-		public_repos: u32,
+		title: Vec<u8>,
+		#[serde(deserialize_with = "de_string_to_bytes")]
+		url: Vec<u8>,
+		descendants: u32,
 	}
 
 	#[derive(Debug, Deserialize, Encode, Decode, Default)]
@@ -118,20 +118,6 @@ pub mod pallet {
 	{
 		let s: &str = Deserialize::deserialize(de)?;
 		Ok(s.as_bytes().to_vec())
-	}
-
-	impl fmt::Debug for GithubInfo {
-		// `fmt` converts the vector of bytes inside the struct back to string for
-		//   more friendly display.
-		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-			write!(
-				f,
-				"{{ login: {}, blog: {}, public_repos: {} }}",
-				str::from_utf8(&self.login).map_err(|_| fmt::Error)?,
-				str::from_utf8(&self.blog).map_err(|_| fmt::Error)?,
-				&self.public_repos
-				)
-		}
 	}
 
 	#[pallet::config]
@@ -180,6 +166,8 @@ pub mod pallet {
 
 		// Error returned when fetching github info
 		HttpFetchingError,
+		DeserializeToObjError,
+		DeserializeToStrError,
 	}
 
 	#[pallet::hooks]
@@ -194,6 +182,9 @@ pub mod pallet {
 		/// so the code should be able to handle that.
 		/// You can use `Local Storage` API to coordinate runs of the worker.
 		fn offchain_worker(block_number: T::BlockNumber) {
+
+			log::info!("Hello from pallet-ocw.");
+
 			// Here we are showcasing various techniques used when running off-chain workers (ocw)
 			// 1. Sending signed transaction from ocw
 			// 2. Sending unsigned transaction from ocw
@@ -205,7 +196,7 @@ pub mod pallet {
 				0 => Self::offchain_signed_tx(block_number),
 				1 => Self::offchain_unsigned_tx(block_number),
 				2 => Self::offchain_unsigned_tx_signed_payload(block_number),
-				3 => Self::fetch_github_info(),
+				3 => Self::fetch_remote_info(),
 				_ => Err(Error::<T>::UnknownOffchainMux),
 			};
 
@@ -305,7 +296,7 @@ pub mod pallet {
 		/// Check if we have fetched github info before. If yes, we can use the cached version
 		///   stored in off-chain worker storage `storage`. If not, we fetch the remote info and
 		///   write the info into the storage for future retrieval.
-		fn fetch_github_info() -> Result<(), Error<T>> {
+		fn fetch_remote_info() -> Result<(), Error<T>> {
 			// Create a reference to Local Storage value.
 			// Since the local storage is common for all offchain workers, it's a good practice
 			// to prepend our entry with the pallet name.
@@ -319,7 +310,7 @@ pub mod pallet {
 			// We will likely want to use `mutate` to access
 			// the storage comprehensively.
 			//
-			if let Ok(Some(gh_info)) = s_info.get::<GithubInfo>() {
+			if let Ok(Some(gh_info)) = s_info.get::<HackerNewsInfo>() {
 				// gh-info has already been fetched. Return early.
 				log::info!("cached gh-info: {:?}", gh_info);
 				return Ok(());
@@ -336,7 +327,7 @@ pub mod pallet {
 			// Here we choose the most custom one for demonstration purpose.
 			let mut lock = StorageLock::<BlockAndTime<Self>>::with_block_and_time_deadline(
 				b"offchain-demo::lock", LOCK_BLOCK_EXPIRATION,
-				rt_offchain::Duration::from_millis(LOCK_TIMEOUT_EXPIRATION)
+				Duration::from_millis(LOCK_TIMEOUT_EXPIRATION)
 				);
 
 			// We try to acquire the lock here. If failed, we know the `fetch_n_parse` part inside is being
@@ -351,38 +342,35 @@ pub mod pallet {
 		}
 
 		/// Fetch from remote and deserialize the JSON to a struct
-		fn fetch_n_parse() -> Result<GithubInfo, Error<T>> {
+		fn fetch_n_parse() -> Result<HackerNewsInfo, Error<T>> {
 			let resp_bytes = Self::fetch_from_remote().map_err(|e| {
 				log::error!("fetch_from_remote error: {:?}", e);
 				<Error<T>>::HttpFetchingError
 			})?;
 
-			let resp_str = str::from_utf8(&resp_bytes).map_err(|_| <Error<T>>::HttpFetchingError)?;
+			let resp_str = str::from_utf8(&resp_bytes).map_err(|_| <Error<T>>::DeserializeToStrError)?;
 			// Print out our fetched JSON string
-			log::info!("{}", resp_str);
+			log::info!("fetch_n_parse: {}", resp_str);
 
 			// Deserializing JSON to struct, thanks to `serde` and `serde_derive`
-			let gh_info: GithubInfo =
-			serde_json::from_str(&resp_str).map_err(|_| <Error<T>>::HttpFetchingError)?;
+			let gh_info: HackerNewsInfo =
+			serde_json::from_str(&resp_str).map_err(|_| <Error<T>>::DeserializeToObjError)?;
 			Ok(gh_info)
 		}
 
 		/// This function uses the `offchain::http` API to query the remote github information,
 		///   and returns the JSON response as vector of bytes.
 		fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
-			log::info!("Sending request to: {}", HTTP_REMOTE_REQUEST);
-
 			// Initiate an external HTTP GET request. This is using high-level wrappers from `sp_runtime`.
-			let request = rt_offchain::http::Request::get(HTTP_REMOTE_REQUEST);
+			let request = http::Request::get(HTTP_REMOTE_REQUEST);
 
 			// Keeping the offchain worker execution time reasonable, so limiting the call to be within 3s.
 			let timeout = sp_io::offchain::timestamp()
-				.add(rt_offchain::Duration::from_millis(FETCH_TIMEOUT_PERIOD));
+				.add(Duration::from_millis(FETCH_TIMEOUT_PERIOD));
 
 			// For github API request, we also need to specify `user-agent` in http request header.
 			//   See: https://developer.github.com/v3/#user-agent-required
 			let pending = request
-				.add_header("User-Agent", HTTP_HEADER_USER_AGENT)
 				.deadline(timeout) // Setting the timeout time
 				.send() // Sending the request out by the host
 				.map_err(|e| {
@@ -391,9 +379,9 @@ pub mod pallet {
 				})?;
 
 			// By default, the http request is async from the runtime perspective. So we are asking the
-			//   runtime to wait here.
+			//   runtime to wait here
 			// The returning value here is a `Result` of `Result`, so we are unwrapping it twice by two `?`
-			//   ref: https://substrate.dev/rustdocs/v2.0.0/sp_runtime/offchain/http/struct.PendingRequest.html#method.try_wait
+			//   ref: https://docs.substrate.io/rustdocs/latest/sp_runtime/offchain/http/struct.PendingRequest.html#method.try_wait
 			let response = pending
 				.try_wait(timeout)
 				.map_err(|e| {

@@ -31,4 +31,4 @@ applies to this repository as well.
 Recipes, based on Substrate v3).
 
 - Review the code of [**Offchain Worker Example Pallet** within Substrate](https://paritytech.github.io/substrate/latest/src/pallet_example_offchain_worker/lib.rs.html#18-709)
-and its [rustdoc](https://paritytech.github.io/substrate/latest/pallet_example_offchain_worker/).
+and its [rustdoc](https://paritytech.github.io/substrate/latest/pallet_example_offchain_worker/). This pallet is also [added in this repository](pallets/example-offchain-worker).

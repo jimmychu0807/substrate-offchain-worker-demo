@@ -17,25 +17,17 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2021-10'
 version = '5.0.0-dev'
 
-[dependencies.pallet-template]
-default-features = false
-path = '../pallets/template'
-version = '3.0.0-monthly-2021-10'
-
-[dependencies.pallet-ocw]
-default-features = false
-path = '../pallets/ocw'
-version = '1.0.0'
-
-[dependencies.log]
-default-features = false
-version = "0.4.14"
+# Dependencies
 
 [dependencies.codec]
 default-features = false
 features = ['derive']
 package = 'parity-scale-codec'
 version = '2.0.0'
+
+[dependencies.log]
+default-features = false
+version = "0.4.14"
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -97,6 +89,16 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2021-10'
 version = '4.0.0-dev'
 
+[dependencies.pallet-example-offchain-worker]
+default-features = false
+version = '4.0.0-dev'
+path = '../pallets/example-offchain-worker'
+
+[dependencies.pallet-ocw]
+default-features = false
+version = '1.0.0'
+path = '../pallets/ocw'
+
 [dependencies.pallet-randomness-collective-flip]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
@@ -108,6 +110,11 @@ default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2021-10'
 version = '4.0.0-dev'
+
+[dependencies.pallet-template]
+default-features = false
+path = '../pallets/template'
+version = '3.0.0-monthly-2021-10'
 
 [dependencies.pallet-timestamp]
 default-features = false
@@ -220,6 +227,7 @@ std = [
 	'log/std',
 	'pallet-aura/std',
 	'pallet-balances/std',
+	'pallet-example-offchain-worker/std',
 	'pallet-grandpa/std',
 	'pallet-ocw/std',
 	'pallet-randomness-collective-flip/std',

@@ -25,7 +25,10 @@ Since this repository is based on Substrate Node Template,
 [it's README](https://github.com/substrate-developer-hub/substrate-node-template/blob/v3.0.0%2Bmonthly-2021-10/README.md)
 applies to this repository as well.
 
-### About Off-chain Worker
+### More about Off-chain Worker
 
-Goto [here](docs/ocw-index.md) to learn more about off-chain worker (extracted from Substrate
+- Goto [here](docs/ocw-index.md) to learn more about off-chain worker (extracted from Substrate
 Recipes, based on Substrate v3).
+
+- Review the code of [**Offchain Worker Example Pallet** within Substrate](https://paritytech.github.io/substrate/latest/src/pallet_example_offchain_worker/lib.rs.html#18-709)
+and its [rustdoc](https://paritytech.github.io/substrate/latest/pallet_example_offchain_worker/).

@@ -45,7 +45,7 @@ pub mod pallet {
 	/// The type to sign and send transactions.
 	const UNSIGNED_TXS_PRIORITY: u64 = 100;
 
-	// We are fetching information from the github public API about organization`substrate-developer-hub`.
+	// We are fetching information from Hacker News public API
 	const HTTP_REMOTE_REQUEST: &str = "https://hacker-news.firebaseio.com/v0/item/9129911.json";
 
 	const FETCH_TIMEOUT_PERIOD: u64 = 3000; // in milli-seconds
@@ -293,14 +293,14 @@ pub mod pallet {
 			});
 		}
 
-		/// Check if we have fetched github info before. If yes, we can use the cached version
+		/// Check if we have fetched the data before. If yes, we can use the cached version
 		///   stored in off-chain worker storage `storage`. If not, we fetch the remote info and
 		///   write the info into the storage for future retrieval.
 		fn fetch_remote_info() -> Result<(), Error<T>> {
 			// Create a reference to Local Storage value.
 			// Since the local storage is common for all offchain workers, it's a good practice
 			// to prepend our entry with the pallet name.
-			let s_info = StorageValueRef::persistent(b"offchain-demo::gh-info");
+			let s_info = StorageValueRef::persistent(b"offchain-demo::hn-info");
 
 			// Local storage is persisted and shared between runs of the offchain workers,
 			// offchain workers may run concurrently. We can use the `mutate` function to
@@ -310,9 +310,9 @@ pub mod pallet {
 			// We will likely want to use `mutate` to access
 			// the storage comprehensively.
 			//
-			if let Ok(Some(gh_info)) = s_info.get::<HackerNewsInfo>() {
-				// gh-info has already been fetched. Return early.
-				log::info!("cached gh-info: {:?}", gh_info);
+			if let Ok(Some(info)) = s_info.get::<HackerNewsInfo>() {
+				// hn-info has already been fetched. Return early.
+				log::info!("cached hn-info: {:?}", info);
 				return Ok(());
 			}
 
@@ -334,7 +334,7 @@ pub mod pallet {
 			//   executed by previous run of ocw, so the function just returns.
 			if let Ok(_guard) = lock.try_lock() {
 				match Self::fetch_n_parse() {
-					Ok(gh_info) => { s_info.set(&gh_info); }
+					Ok(info) => { s_info.set(&info); }
 					Err(err) => { return Err(err); }
 				}
 			}
@@ -353,12 +353,12 @@ pub mod pallet {
 			log::info!("fetch_n_parse: {}", resp_str);
 
 			// Deserializing JSON to struct, thanks to `serde` and `serde_derive`
-			let gh_info: HackerNewsInfo =
+			let info: HackerNewsInfo =
 			serde_json::from_str(&resp_str).map_err(|_| <Error<T>>::DeserializeToObjError)?;
-			Ok(gh_info)
+			Ok(info)
 		}
 
-		/// This function uses the `offchain::http` API to query the remote github information,
+		/// This function uses the `offchain::http` API to query the remote endpoint information,
 		///   and returns the JSON response as vector of bytes.
 		fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
 			// Initiate an external HTTP GET request. This is using high-level wrappers from `sp_runtime`.
@@ -368,8 +368,6 @@ pub mod pallet {
 			let timeout = sp_io::offchain::timestamp()
 				.add(Duration::from_millis(FETCH_TIMEOUT_PERIOD));
 
-			// For github API request, we also need to specify `user-agent` in http request header.
-			//   See: https://developer.github.com/v3/#user-agent-required
 			let pending = request
 				.deadline(timeout) // Setting the timeout time
 				.send() // Sending the request out by the host
